@@ -1,0 +1,9 @@
+idsbr,nama_usaha,alamat_usaha,kdkec,kdprov,kdkab,cek_duplikat
+101,Toko A,Jl. Merdeka No 1,001,31,1,False
+102,Toko A,Jl. Merdeka No 1,001,31,1,True
+103,Warung B,Jl. Sudirman 5,001,31,1,False
+104,Warung B,Jl Sudirman No 5,001,31,1,True
+105,Cafe C,Jl. Thamrin,002,31,1,False
+106,Kafe C,Jl. Thamrin,002,31,1,False
+107,Unique D,Jl. Unik,002,31,1,False
+108,Toko A,Jl. Jauh No 99,002,31,1,False

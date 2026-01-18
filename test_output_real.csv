@@ -1,0 +1,5 @@
+idsbr,nama_usaha,alamat_usaha,kode_wilayah,kdkec,cek_duplikat,idsbr_real
+101,Toko A,Jl. Merdeka No 1,3101001001,,False,
+102,Toko A,Jl. Merdeka No 1,3101001001,,True,101
+6284063,"INDO BALAU UME, PT","MENARA BATAVIA LT 3, JL KH MAS MANSYUR KAV 126",3173010003,,False,
+95935422,"INDO BALAU UME ,PT",Menara Batavia Lt.3 Jl. KH. Mas Mansyur Kav.126 Karet Tengsin - Tanah Abang,3173,,True,6284063

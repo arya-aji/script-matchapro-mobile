@@ -1,0 +1,7 @@
+idsbr,nama_usaha,alamat_usaha,kode_wilayah,kdkec,latitude,longitude,cek_duplikat,idsbr_real
+101,Toko A,Jl. Merdeka No 1,3101001001,,-6.0,106.0,False,
+102,Toko A,Jl. Merdeka No 1,3101001001,,-6.0,106.0,True,101
+201,Kafe Spatial,Jl. Darat No 1,3101001001,,-6.5,106.5,False,
+202,Kafe Spasial,Jl. Laut No 99,3101001001,,-6.500001,106.500001,True,201
+6284063,"INDO BALAU UME, PT","MENARA BATAVIA LT 3, JL KH MAS MANSYUR KAV 126",3173010003,,-6.2110529,106.8157033,False,
+95935422,"INDO BALAU UME ,PT",Menara Batavia Lt.3 Jl. KH. Mas Mansyur Kav.126 Karet Tengsin - Tanah Abang,3173,,-6.2139247,106.8179613,True,6284063

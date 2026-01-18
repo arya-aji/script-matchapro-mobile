@@ -1,0 +1,27 @@
+Kategori Duplikat dan Metode Pengecekan (Update v4)
+
+1. Duplikat Eksak (Exact Match)
+   - Kriteria: Nama usaha DAN alamat usaha persis sama (setelah dibersihkan).
+   - Metode: Pengecekan kesamaan 100% pada teks. Record dengan `idsbr` terkecil dianggap asli.
+
+2. Duplikat Fuzzy (Fuzzy Match / Kemiripan)
+   - Metode Blocking (Multi-Pass):
+     a. Pass 1: Berdasarkan `kode_wilayah` (Desa/Kelurahan).
+     b. Pass 2: Berdasarkan 3 huruf pertama nama usaha (mengatasi error kode wilayah).
+   
+   - Kriteria Deteksi (Salah satu harus terpenuhi):
+     
+     Syarat Utama: Kemiripan Nama Usaha >= 85%
+     
+     DAN (AND) salah satu dari kondisi berikut:
+     
+     a. Kemiripan Alamat Teks >= 80%
+        - Menggunakan metode `partial_ratio` (cocok jika satu alamat adalah bagian dari alamat lain).
+        
+     b. Jarak Geospasial < 1000 Meter
+        - Menggunakan rumus Haversine pada `latitude` dan `longitude`.
+        - Mengatasi kasus alamat ditulis berbeda tapi lokasi fisiknya sama.
+
+   - Resolusi: 
+     - Jika ditemukan duplikat, record dengan `idsbr` terkecil disimpan sebagai master.
+     - Record lainnya ditandai `cek_duplikat = True` dan kolom `idsbr_real` diisi ID master.
