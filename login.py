@@ -1,14 +1,69 @@
 from playwright.sync_api import sync_playwright
 import sys
+import random
 
-def login_with_sso(username, password, otp_code=None):
-    """
-    Lakukan login SSO ke MatchaPro dan kembalikan objek halaman jika berhasil.
-    Returns: objek halaman jika login berhasil, None jika tidak.
-    """
-    p = sync_playwright().start()
-    browser = p.chromium.launch(headless=False)  # Set to True for headless
-    page = browser.new_page()
+user_agan = [
+    "Mozilla/5.0 (Linux; Android 16; ONEPLUS 15 Build/SKQ1.211202.001; wv) AppleWebKit/537.36 (KHTML, like Gecko) Version/4.0 Chrome/143.0.7499.192 Mobile Safari/537.36",
+    "Mozilla/5.0 (Linux; Android 15; SM-S928B Build/TP1A.220624.014; wv) AppleWebKit/537.36 (KHTML, like Gecko) Version/4.0 Chrome/133.0.6943.88 Mobile Safari/537.36",
+    "Mozilla/5.0 (Linux; Android 14; Pixel 8a Build/UP1A.231005.007; wv) AppleWebKit/537.36 (KHTML, like Gecko) Version/4.0 Chrome/130.0.6723.102 Mobile Safari/537.36",
+    "Mozilla/5.0 (Linux; Android 15; POCO X7 Pro Build/UKQ1.231003.002; wv) AppleWebKit/537.36 (KHTML, like Gecko) Version/4.0 Chrome/133.0.6943.45 Mobile Safari/537.36",
+    "Mozilla/5.0 (Linux; Android 16; SM-A556E Build/TP1A.220624.014; wv) AppleWebKit/537.36 (KHTML, like Gecko) Version/4.0 Chrome/134.0.6998.88 Mobile Safari/537.36",
+    "Mozilla/5.0 (Linux; Android 14; ONEPLUS PJZ110 Build/SKQ1.210216.001; wv) AppleWebKit/537.36 (KHTML, like Gecko) Version/4.0 Chrome/132.0.6834.102 Mobile Safari/537.36",
+    "Mozilla/5.0 (Linux; Android 15; Redmi Note 14 Pro Build/UKQ1.231003.002; wv) AppleWebKit/537.36 (KHTML, like Gecko) Version/4.0 Chrome/133.0.6943.127 Mobile Safari/537.36",
+    "Mozilla/5.0 (Linux; Android 16; Pixel 9 Pro Build/TP1A.220624.014; wv) AppleWebKit/537.36 (KHTML, like Gecko) Version/4.0 Chrome/134.0.6998.45 Mobile Safari/537.36",
+    "Mozilla/5.0 (Linux; Android 14; moto g85 5G Build/S3SGS32.12-78-7; wv) AppleWebKit/537.36 (KHTML, like Gecko) Version/4.0 Chrome/131.0.6778.200 Mobile Safari/537.36",
+    "Mozilla/5.0 (Linux; Android 15; SM-G991B Build/TP1A.220624.014; wv) AppleWebKit/537.36 (KHTML, like Gecko) Version/4.0 Chrome/132.0.6834.88 Mobile Safari/537.36"
+]
+
+# Pilih user agent secara acak dari list yang terverifikasi
+user_agents = random.choice(user_agan)
+
+# Reuse a single Playwright instance to avoid starting/stopping inside runtime
+_PW = None
+def _get_playwright():
+    global _PW
+    if _PW is None:
+        _PW = sync_playwright().start()
+    return _PW
+
+def _stop_playwright():
+    global _PW
+    try:
+        if _PW is not None:
+            _PW.stop()
+            _PW = None
+    except Exception:
+        pass
+
+def login_with_sso(username, password, otp_code=None, headless=False):
+    """Lakukan login SSO ke MatchaPro dan kembalikan objek halaman jika berhasil."""
+    pw = _get_playwright()
+    browser = pw.chromium.launch(headless=headless)  # Set to True for headless
+    
+    # Emulate mobile to avoid "Not Authorized" / "Akses lewat matchapro mobile aja"
+    context = browser.new_context(
+        user_agent=user_agents,
+        viewport={"width": 412, "height": 915},
+        is_mobile=True,
+        has_touch=True,
+        extra_http_headers={
+            "x-requested-with": "com.matchapro.app",
+            "sec-ch-ua": "\"Android WebView\";v=\"143\", \"Chromium\";v=\"143\", \"Not A(Brand\";v=\"24\"",
+            "sec-ch-ua-mobile": "?1",
+            "sec-ch-ua-platform": "\"Android\""
+        }
+    )
+    page = context.new_page()
+    
+    # Tambahkan script untuk mengubah navigator properties agar lebih mirip mobile
+    page.add_init_script("""
+        Object.defineProperty(navigator, 'platform', {
+            get: function() { return 'Linux armv8l'; }
+        });
+        Object.defineProperty(navigator, 'maxTouchPoints', {
+            get: function() { return 5; }
+        });
+    """)
 
     try:
         # Navigasi ke halaman login
@@ -53,12 +108,18 @@ def login_with_sso(username, password, otp_code=None):
         else:
             print("Login gagal. Periksa kredensial.")
             print(f"Current URL: {current_url}")
-            browser.close()
+            try:
+                browser.close()
+            except Exception:
+                pass
             return None, None
 
     except Exception as e:
         print(f"Error selama login: {e}")
-        browser.close()
+        try:
+            browser.close()
+        except Exception:
+            pass
         return None, None
 
 if __name__ == "__main__":
@@ -73,6 +134,16 @@ if __name__ == "__main__":
     page, browser = login_with_sso(username, password, otp_code)
     if page:
         print("Objek halaman diperoleh.")
-        browser.close()
+        try:
+            browser.close()
+        except Exception:
+            pass
     else:
         print("Gagal memperoleh objek halaman.")
+
+    # Stop global Playwright instance on exit
+    try:
+        _stop_playwright()
+    except Exception:
+        pass
+    

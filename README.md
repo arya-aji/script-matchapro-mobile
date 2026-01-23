@@ -24,7 +24,7 @@
 5. **Download Raw Data** 📥  
    Jalankan script untuk mengunduh data:  
    ```
-   python scraping_all.py
+   python scraping_all.py atau py scraping_all.py (tergantung instalasi python anda)
    ```
 
 6. **Pengolahan Data** 🔄  
@@ -45,8 +45,13 @@
 10. **Submit ke GC** 📤  
    Jika data sudah siap, jalankan:  
    ```
-   python tandaiKirim.py username password OTP_opsional barisMulai
+   python tandaiKirim.py username password OTP (hanya jika menggunakan OTP)
    ```
+   atau 
+   ```
+   py tandaiKirim.py username password OTP ((hanya jika menggunakan OTP)
+   ```
+>> nomor baris yang terakhir dikirim tersimpan di file baris.txt, eksekusi script selanjutnya akan melanjutkan baris sesuai dengan baris.txt
 
 11. **Kopi Sudah Dingin?** 😄  
    Waktunya istirahat sejenak!
@@ -67,6 +72,12 @@
 #### ⚠️ Untuk menjaga integritas data, pastikan data input valid
 
 >>Jika script gagal silakan cek kembali repo ini, siapa tahu ada update!
+
+
+
+
+
+
 
 
 
