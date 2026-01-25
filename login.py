@@ -35,9 +35,12 @@ def _stop_playwright():
     except Exception:
         pass
 
-def login_with_sso(username, password, otp_code=None, headless=False):
+def login_with_sso(username, password, otp_code=None, headless=False, playwright_instance=None):
     """Lakukan login SSO ke MatchaPro dan kembalikan objek halaman jika berhasil."""
-    pw = _get_playwright()
+    if playwright_instance:
+        pw = playwright_instance
+    else:
+        pw = _get_playwright()
     browser = pw.chromium.launch(headless=headless)  # Set to True for headless
     
     # Emulate mobile to avoid "Not Authorized" / "Akses lewat matchapro mobile aja"

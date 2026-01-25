@@ -4,3 +4,8 @@
 /direktori_usaha_full_all_columns_2026.csv
 /node_modules
 /__pycache__
+data_jakpus.csv
+.gitignore
+direktori_usaha_checked.xlsx
+MatchaProSender_v1.3.0.spec
+MatchaProSender_v1.3.2.spec
