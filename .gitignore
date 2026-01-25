@@ -4,6 +4,7 @@
 /direktori_usaha_full_all_columns_2026.csv
 /node_modules
 /__pycache__
+/build
 data_jakpus.csv
 .gitignore
 direktori_usaha_checked.xlsx
