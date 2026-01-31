@@ -198,6 +198,33 @@ class MatchaSender:
                  self.log(f"Skip Row {index}: gc_username terisi ({gc_user})")
                  return gc_token, True
 
+        # Custom Skip Logic: Update checked but edit fields empty
+        # Check 'update' or 'update_isian' column (flexible naming)
+        update_col = 'update' if 'update' in row else ('update_isian' if 'update_isian' in row else None)
+        
+        if update_col:
+            update_val = row[update_col]
+            is_update_checked = False
+            if pd.notna(update_val):
+                 u_str = str(update_val).strip().lower()
+                 # Common truthy values for checkboxes/boolean columns
+                 if u_str in ['1', '1.0', 'true', 'yes', 'y', 't', 'ok', 'chk', 'checked']:
+                     is_update_checked = True
+                 elif isinstance(update_val, (int, float)) and update_val != 0:
+                     is_update_checked = True
+            
+            if is_update_checked:
+                nama_edit = row.get('nama_usaha_edit', '')
+                alamat_edit = row.get('alamat_usaha_edit', '')
+                
+                # Check if blank
+                is_nama_blank = pd.isna(nama_edit) or str(nama_edit).strip() == '' or str(nama_edit).strip().lower() == 'nan'
+                is_alamat_blank = pd.isna(alamat_edit) or str(alamat_edit).strip() == '' or str(alamat_edit).strip().lower() == 'nan'
+                
+                if is_nama_blank and is_alamat_blank:
+                     self.log(f"Skip Row {index}: Update tercentang namun edit fields (nama/alamat) kosong. Skipped.")
+                     return gc_token, True
+
         # Sanitize hasilgc (Handle NaN -> 99)
         if pd.isna(hasilgc) or str(hasilgc).strip() == '':
             hasilgc = 99
@@ -262,7 +289,7 @@ class MatchaSender:
                 
                 if status == 429:
                     consecutive_429 += 1
-                    wait = random.randint(30, 60) if consecutive_429 == 1 else 600
+                    wait = random.randint(30, 60) if consecutive_429 == 1 else 620
                     self.log(f"Rate Limit (429) hit. Waiting {wait}s...")
                     time.sleep(wait)
                     
