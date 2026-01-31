@@ -10,18 +10,20 @@ import requests
 from playwright.sync_api import sync_playwright
 from login import login_with_sso, user_agents
 
-version = "1.3.3"
+version = "1.3.4"
 
 
 class MatchaSender:
-    def __init__(self, username, password, otp_code=None, config=None, logger_callback=None, vpn_callback=None):
+    def __init__(self, username, password, otp_code=None, config=None, logger_callback=None, vpn_callback=None, result_queue=None):
         self.username = username
         self.password = password
         self.otp_code = otp_code
         self.config = config or {}
         self.logger_callback = logger_callback
         self.vpn_callback = vpn_callback
+        self.result_queue = result_queue
         self.worker_id = 0
+
         self.total_workers = 1
         self.running = True
         
@@ -111,11 +113,19 @@ class MatchaSender:
             pw = sync_playwright().start()
             
             self.log("Sedang mencoba login...")
-            # Pass our private playwright instance
-            page, browser = login_with_sso(self.username, self.password, self.otp_code, headless=self.headless, playwright_instance=pw)
+            
+            # Retry Login Loop
+            while self.running:
+                page, browser = login_with_sso(self.username, self.password, self.otp_code, headless=self.headless, playwright_instance=pw)
+                
+                if page:
+                    break
+                
+                self.log("Login Gagal! Mencoba lagi dalam 10 detik...")
+                time.sleep(10)
             
             if not page:
-                self.log("Login Gagal!")
+                self.log("Gagal login setelah retry atau dihentikan.")
                 return False
 
             self.log(f"Login Berhasil. Memulai proses (Worker {worker_id+1}/{total_workers})...")
@@ -150,20 +160,11 @@ class MatchaSender:
                     continue
 
                 row = df.iloc[index]
-                self.process_row(index, row, page, url_post, _token, gc_token)
+                gc_token, skipped = self.process_row(index, row, page, url_post, _token, gc_token)
                 
-                # Update tokens if changed (handled inside process_row somewhat, but mostly response based)
-                # Actually gc_token updates are returned in response.
-                
-                # Check for token updates from last successful request response? 
-                # Ideally process_row returns the new token if any.
-                # But to keep it simple, we trust the response handling updating a local var? 
-                # Wait, process_row needs access to update gc_token. 
-                # Let's Refactor process_row to be inline or return (success, new_gc_token)
-                
-                # Re-reading tokens from page reload is expensive and done only on error.
-                # Standard success updates are in JSON response.
-                
+                if skipped:
+                    continue # Skip delay
+
                 # Wait
                 sleep_val = float(self.base_delay)
                 if self.use_random:
@@ -183,37 +184,69 @@ class MatchaSender:
                 pw.stop()
 
     def process_row(self, index, row, page, url, _token, gc_token):
-        # ... logic extraction from original main ...
-        # returns new_gc_token (if updated) or same
+        # returns (gc_token, skipped_boolean)
         
         perusahaan_id = row['perusahaan_id']
         latitude = row['latitude']
         longitude = row['longitude']
         hasilgc = row['hasilgc']
         
+        # Custom Skip Logic: gc_username exists
+        if 'gc_username' in row:
+             gc_user = row['gc_username']
+             if pd.notna(gc_user) and str(gc_user).strip() != '' and str(gc_user).strip().lower() != 'nan':
+                 self.log(f"Skip Row {index}: gc_username terisi ({gc_user})")
+                 return gc_token, True
+
+        # Sanitize hasilgc (Handle NaN -> 99)
+        if pd.isna(hasilgc) or str(hasilgc).strip() == '':
+            hasilgc = 99
+
         # Validation checks... reuse logic
-        if pd.isna(hasilgc) or str(hasilgc).strip() == '' or hasilgc not in [99, 1, 3, 4]:
-             self.log(f"Skip Row {index}: hasilgc invalid ({hasilgc})")
-             return gc_token # No change
+        # Convert to int safe check
+        try:
+            hasilgc_int = int(float(hasilgc))
+            if hasilgc_int not in [99, 1, 3, 4, 55]:
+                self.log(f"Skip Row {index}: hasilgc invalid ({hasilgc})")
+                return gc_token, True
+            hasilgc = hasilgc_int # Use clean int
+        except:
+             self.log(f"Skip Row {index}: hasilgc invalid format ({hasilgc})")
+             return gc_token, True # Skipped
 
         if hasilgc == 1:
              if pd.isna(latitude) or pd.isna(longitude):
                  self.log(f"Skip Row {index}: Lat/Long empty for hasilgc=1")
-                 return gc_token
+                 return gc_token, True # Skipped
 
         max_retries = 5
         consecutive_429 = 0
         
         for attempt in range(max_retries):
             try:
+                # Sanitize Coordinates
+                lat_clean = str(latitude).replace(',', '.')
+                long_clean = str(longitude).replace(',', '.')
+                
+                # Get Edit Columns
+                nama_usaha_edit = row.get('nama_usaha_edit', '')
+                alamat_usaha_edit = row.get('alamat_usaha_edit', '')
+
                 form_data = {
                     "perusahaan_id": str(perusahaan_id),
-                    "latitude": str(latitude),
-                    "longitude": str(longitude),
+                    "latitude": lat_clean,
+                    "longitude": long_clean,
                     "hasilgc": str(hasilgc),
                     "gc_token": gc_token,
                     "_token": _token
                 }
+                
+                # Add optional edit fields if they exist
+                if pd.notna(nama_usaha_edit) and str(nama_usaha_edit).strip():
+                    form_data["nama_usaha"] = str(nama_usaha_edit).strip()
+                    
+                if pd.notna(alamat_usaha_edit) and str(alamat_usaha_edit).strip():
+                    form_data["alamat_usaha"] = str(alamat_usaha_edit).strip()
                 
                 post_headers = {
                     "origin": "https://matchapro.web.bps.go.id",
@@ -239,6 +272,8 @@ class MatchaSender:
                     _token, gc_token = self.extract_tokens(page)
                     continue
 
+                    return gc_token, False
+
                 if status == 200:
                     try:
                         resp_json = response.json()
@@ -249,11 +284,28 @@ class MatchaSender:
                     
                     self.log(f"Row {index}: Success (200) - {text[:50]}...")
                     
-                    # Update baris.txt logic (Only if single worker, else it's messy)
-                    if self.total_workers == 1:
-                        with open('baris.txt', 'w') as f: f.write(str(index))
+                    # Update Result (gc_username)
+                    if self.result_queue:
+                        try:
+                            self.result_queue.put({'index': index, 'username': self.username})
+                        except: pass
+
+                    # Update baris.txt logic (Thread-safe-ish check)
+                    try:
+                        current_saved = 0
+                        try:
+                            with open('baris.txt', 'r') as f:
+                                current_saved = int(f.read().strip())
+                        except:
+                            pass
+                        
+                        if index > current_saved:
+                            with open('baris.txt', 'w') as f:
+                                f.write(str(index))
+                    except Exception as e:
+                        print(f"Failed to update baris.txt: {e}")
                     
-                    return gc_token
+                    return gc_token, False
 
                 # Handle other retryable errors (400 token invalid, 503)
                 retry = False
@@ -274,8 +326,8 @@ class MatchaSender:
                 self.log(f"Row {index}: Failed ({status}) - {text}")
                 # Log to error.txt
                 with open('error.txt', 'a') as f:
-                     f.write(f"Row {index} [User:{self.username}]: {status} - {text}\n")
-                return gc_token
+                     f.write(f"Row {index} [User:{self.username}]: {status} - {text} | Payload: {form_data}\n")
+                return gc_token, False
 
             except Exception as e:
                 error_msg = str(e).lower()
@@ -291,10 +343,19 @@ class MatchaSender:
                 else:
                     time.sleep(5)
         
-        return gc_token
+        return gc_token, False
 
     def load_csv(self, path):
-        # Smart load logic
+        # Support Excel
+        if path.lower().endswith(('.xlsx', '.xls')):
+            try:
+                # Engine 'openpyxl' is default for xlsx in recent pandas
+                return pd.read_excel(path)
+            except Exception as e:
+                self.log(f"Gagal baca Excel: {e}")
+                # Fallthrough to try CSV just in case
+        
+        # Smart load logic for CSV
         encodings = ['utf-8', 'cp1252', 'latin1']
         seps = [';', ',', '\t']
         
